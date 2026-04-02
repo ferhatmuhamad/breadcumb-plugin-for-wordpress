@@ -2,8 +2,9 @@
 /**
  * Breadcrumb renderer for Simple Custom Breadcrumb.
  *
- * Builds a breadcrumb trail by walking the WordPress page/post/taxonomy
- * hierarchy from the front page to the currently-viewed object.
+ * Builds a breadcrumb trail by splitting the current URL path into segments
+ * and resolving each segment to a human-readable label via WordPress objects
+ * (page → taxonomy term → post → CPT → fallback capitalisation).
  *
  * @package Simple_Custom_Breadcrumb
  */
@@ -87,21 +88,11 @@ class SCB_Breadcrumb_Renderer {
 		$trail[] = $this->get_home_item();
 
 		if ( is_front_page() ) {
-			// Nothing to add; the trail already contains only "Home".
 			return $trail;
 		}
 
-		if ( is_singular() ) {
-			$trail = array_merge( $trail, $this->get_singular_items() );
-		} elseif ( is_post_type_archive() ) {
-			$trail = array_merge( $trail, $this->get_post_type_archive_items() );
-		} elseif ( is_category() || is_tag() || is_tax() ) {
-			$trail = array_merge( $trail, $this->get_taxonomy_items() );
-		} elseif ( is_date() ) {
-			$trail = array_merge( $trail, $this->get_date_items() );
-		} elseif ( is_author() ) {
-			$trail = array_merge( $trail, $this->get_author_items() );
-		} elseif ( is_search() ) {
+		// Special cases that don't follow the URL hierarchy.
+		if ( is_search() ) {
 			$trail[] = array(
 				'label' => sprintf(
 					/* translators: %s search query */
@@ -110,16 +101,159 @@ class SCB_Breadcrumb_Renderer {
 				),
 				'url'   => '',
 			);
-		} elseif ( is_404() ) {
+			return $trail;
+		}
+
+		if ( is_404() ) {
 			$trail[] = array(
 				'label' => esc_html__( '404 – Not Found', 'simple-custom-breadcrumb' ),
 				'url'   => '',
 			);
-		} elseif ( is_page() ) {
-			$trail = array_merge( $trail, $this->get_page_items() );
+			return $trail;
 		}
 
+		if ( is_date() ) {
+			$trail = array_merge( $trail, $this->get_date_items() );
+			return $trail;
+		}
+
+		if ( is_author() ) {
+			$trail = array_merge( $trail, $this->get_author_items() );
+			return $trail;
+		}
+
+		// For all other pages (singular, archives, taxonomies, CPTs):
+		// derive the breadcrumb entirely from the URL path segments so that
+		// every intermediate directory is always represented.
+		$trail = array_merge( $trail, $this->build_items_from_url_segments() );
+
 		return $trail;
+	}
+
+	// -------------------------------------------------------------------------
+	// URL-segments trail builder
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Build breadcrumb items by splitting the current URL path into segments.
+	 *
+	 * Each segment is resolved to a human-readable label through WordPress
+	 * objects in priority order (page → taxonomy term → post → CPT → fallback).
+	 * Every segment except the last becomes a clickable link; the last segment
+	 * (current page) has an empty URL so the renderer can style it differently.
+	 *
+	 * @return array<int, array{label: string, url: string}>
+	 */
+	private function build_items_from_url_segments() {
+		$items = array();
+
+		// Use the sanitized request path from WordPress when available so that
+		// the value is already validated by WordPress core; fall back to a
+		// manually sanitised parse of REQUEST_URI.
+		$request = isset( $GLOBALS['wp']->request ) ? $GLOBALS['wp']->request : '';
+		if ( empty( $request ) ) {
+			$raw_path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+			$request  = trim( wp_parse_url( $raw_path, PHP_URL_PATH ), '/' );
+		}
+
+		$path = trim( $request, '/' );
+
+		// Strip the WordPress subdirectory prefix when installed in a subfolder.
+		$home_path = trim( wp_parse_url( home_url(), PHP_URL_PATH ), '/' );
+		if ( ! empty( $home_path ) && 0 === strpos( $path, $home_path ) ) {
+			$path = ltrim( substr( $path, strlen( $home_path ) ), '/' );
+		}
+
+		if ( empty( $path ) ) {
+			return $items;
+		}
+
+		$segments       = explode( '/', $path );
+		$cumulative_path = '';
+		$total_segments = count( $segments );
+
+		foreach ( $segments as $index => $slug ) {
+			if ( empty( $slug ) ) {
+				continue;
+			}
+
+			$cumulative_path .= $slug . '/';
+			$is_last          = ( $index === $total_segments - 1 );
+
+			$label = $this->get_label_for_segment( $slug, $cumulative_path );
+
+			$items[] = array(
+				'label' => $label,
+				'url'   => $is_last ? '' : home_url( '/' . $cumulative_path ),
+			);
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Resolve a URL slug to a human-readable label.
+	 *
+	 * Resolution order:
+	 *   1. WordPress Page matching the full cumulative path (handles sub-pages).
+	 *   2. WordPress Page matching the slug alone.
+	 *   3. Taxonomy term with this slug (all public taxonomies, single query).
+	 *   4. Published post / CPT post with this slug (single cross-type query).
+	 *   5. Post-type object whose name matches the slug (CPT archive).
+	 *   6. Fallback: capitalise slug, replace hyphens with spaces.
+	 *
+	 * @param string $slug            The URL segment slug.
+	 * @param string $cumulative_path The cumulative URL path up to and including this segment (with trailing slash).
+	 * @return string Human-readable label.
+	 */
+	private function get_label_for_segment( $slug, $cumulative_path = '' ) {
+		// 1. Try WordPress Page by full cumulative path, then by slug alone.
+		$page = get_page_by_path( rtrim( $cumulative_path, '/' ) );
+		if ( ! $page instanceof WP_Post ) {
+			$page = get_page_by_path( $slug );
+		}
+		if ( $page instanceof WP_Post ) {
+			return get_the_title( $page );
+		}
+
+		// 2. Try taxonomy term with this slug — single query across all public taxonomies.
+		$taxonomies = array_values( get_taxonomies( array( 'public' => true ), 'names' ) );
+		if ( ! empty( $taxonomies ) ) {
+			$terms = get_terms(
+				array(
+					'taxonomy'   => $taxonomies,
+					'slug'       => $slug,
+					'hide_empty' => false,
+					'number'     => 1,
+				)
+			);
+			if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
+				return $terms[0]->name;
+			}
+		}
+
+		// 3. Try published post with this slug — single cross-type query.
+		$posts = get_posts(
+			array(
+				'name'          => $slug,
+				'post_type'     => 'any',
+				'post_status'   => 'publish',
+				'numberposts'   => 1,
+				'no_found_rows' => true,
+			)
+		);
+		if ( ! empty( $posts ) ) {
+			return get_the_title( $posts[0] );
+		}
+
+		// 4. Try CPT archive (slug might be the post-type name).
+		$post_type_obj = get_post_type_object( $slug );
+		if ( $post_type_obj ) {
+			return $post_type_obj->labels->name;
+		}
+
+		// 5. Fallback: capitalise and replace hyphens with spaces.
+		return ucwords( str_replace( '-', ' ', $slug ) );
 	}
 
 	// -------------------------------------------------------------------------
@@ -149,193 +283,6 @@ class SCB_Breadcrumb_Renderer {
 			'label' => $label,
 			'url'   => home_url( '/' ),
 		);
-	}
-
-	/**
-	 * Build items for singular posts / pages / custom post types.
-	 *
-	 * @return array<int, array{label: string, url: string}>
-	 */
-	private function get_singular_items() {
-		global $post;
-		$items = array();
-
-		if ( ! $post instanceof WP_Post ) {
-			return $items;
-		}
-
-		$post_type = get_post_type( $post );
-
-		if ( 'post' === $post_type ) {
-			// Standard blog post: Home / Category / Post title.
-			$categories = get_the_category( $post->ID );
-			if ( ! empty( $categories ) ) {
-				$category = $categories[0];
-				// Walk up the category parent chain.
-				$cat_trail = $this->get_term_ancestors( $category );
-				foreach ( $cat_trail as $cat_item ) {
-					$items[] = $cat_item;
-				}
-			}
-			// Add the post itself (current – no URL).
-			$items[] = array(
-				'label' => get_the_title( $post ),
-				'url'   => '',
-			);
-			return $items;
-		}
-
-		if ( 'page' === $post_type ) {
-			return $this->get_page_items();
-		}
-
-		// Custom post type.
-		$post_type_obj = get_post_type_object( $post_type );
-
-		// Archive link for the CPT (if it has one).
-		if ( $post_type_obj && $post_type_obj->has_archive ) {
-			$items[] = array(
-				'label' => $post_type_obj->labels->name,
-				'url'   => get_post_type_archive_link( $post_type ),
-			);
-		} elseif ( $post_type_obj ) {
-			// No public archive – still show the CPT name as a plain text ancestor.
-			// Try to find a matching page with the same slug as the CPT.
-			$archive_page = get_page_by_path( $post_type );
-			if ( $archive_page ) {
-				$items[] = array(
-					'label' => get_the_title( $archive_page ),
-					'url'   => get_permalink( $archive_page ),
-				);
-			}
-		}
-
-		// Taxonomy terms (first registered taxonomy for this CPT).
-		$taxonomies = get_object_taxonomies( $post_type, 'objects' );
-		foreach ( $taxonomies as $taxonomy ) {
-			if ( ! $taxonomy->public || in_array( $taxonomy->name, array( 'post_format' ), true ) ) {
-				continue;
-			}
-			$terms = get_the_terms( $post, $taxonomy->name );
-			if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
-				$term  = $terms[0];
-				$term_trail = $this->get_term_ancestors( $term );
-				foreach ( $term_trail as $term_item ) {
-					$items[] = $term_item;
-				}
-			}
-			break; // Only add one taxonomy level.
-		}
-
-		// The post itself (current).
-		$items[] = array(
-			'label' => get_the_title( $post ),
-			'url'   => '',
-		);
-
-		return $items;
-	}
-
-	/**
-	 * Build items for static WordPress pages (with parent-child hierarchy).
-	 *
-	 * @return array<int, array{label: string, url: string}>
-	 */
-	private function get_page_items() {
-		global $post;
-		$items = array();
-
-		if ( ! $post instanceof WP_Post ) {
-			return $items;
-		}
-
-		// Collect ancestor pages.
-		$ancestors = array_reverse( get_post_ancestors( $post ) );
-		foreach ( $ancestors as $ancestor_id ) {
-			$items[] = array(
-				'label' => get_the_title( $ancestor_id ),
-				'url'   => get_permalink( $ancestor_id ),
-			);
-		}
-
-		// The current page (no URL).
-		$items[] = array(
-			'label' => get_the_title( $post ),
-			'url'   => '',
-		);
-
-		return $items;
-	}
-
-	/**
-	 * Build items for post-type archive pages.
-	 *
-	 * @return array<int, array{label: string, url: string}>
-	 */
-	private function get_post_type_archive_items() {
-		$post_type = get_query_var( 'post_type' );
-		if ( is_array( $post_type ) ) {
-			$post_type = reset( $post_type );
-		}
-		$post_type_obj = get_post_type_object( $post_type );
-
-		if ( ! $post_type_obj ) {
-			return array();
-		}
-
-		return array(
-			array(
-				'label' => $post_type_obj->labels->name,
-				'url'   => '',
-			),
-		);
-	}
-
-	/**
-	 * Build items for taxonomy archive pages (category, tag, custom taxonomy).
-	 *
-	 * @return array<int, array{label: string, url: string}>
-	 */
-	private function get_taxonomy_items() {
-		$term = get_queried_object();
-		if ( ! $term instanceof WP_Term ) {
-			return array();
-		}
-
-		$items = array();
-
-		// For custom taxonomies, include the associated CPT archive first.
-		if ( ! in_array( $term->taxonomy, array( 'category', 'post_tag' ), true ) ) {
-			$taxonomy_obj = get_taxonomy( $term->taxonomy );
-			if ( $taxonomy_obj ) {
-				$object_types = $taxonomy_obj->object_type;
-				$cpt          = reset( $object_types );
-				$cpt_obj      = get_post_type_object( $cpt );
-				if ( $cpt_obj && $cpt_obj->has_archive ) {
-					$items[] = array(
-						'label' => $cpt_obj->labels->name,
-						'url'   => get_post_type_archive_link( $cpt ),
-					);
-				}
-			}
-		}
-
-		// Walk up term ancestors (grandparent → parent → current).
-		$ancestor_trail = $this->get_term_ancestors( $term );
-		// Last item in ancestor trail is the current term (no URL).
-		foreach ( $ancestor_trail as $i => $term_item ) {
-			if ( $i < count( $ancestor_trail ) - 1 ) {
-				$items[] = $term_item;
-			} else {
-				// Current term.
-				$items[] = array(
-					'label' => $term_item['label'],
-					'url'   => '',
-				);
-			}
-		}
-
-		return $items;
 	}
 
 	/**
@@ -397,38 +344,4 @@ class SCB_Breadcrumb_Renderer {
 		);
 	}
 
-	// -------------------------------------------------------------------------
-	// Helper: walk up a term's parent chain
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Build an ordered array of breadcrumb items from the root term ancestor
-	 * down to (and including) the given term.
-	 *
-	 * @param WP_Term $term The term to start from.
-	 * @return array<int, array{label: string, url: string}>
-	 */
-	private function get_term_ancestors( WP_Term $term ) {
-		$chain = array( $term );
-
-		$current = $term;
-		while ( ! empty( $current->parent ) ) {
-			$parent = get_term( $current->parent, $current->taxonomy );
-			if ( ! $parent instanceof WP_Term ) {
-				break;
-			}
-			array_unshift( $chain, $parent );
-			$current = $parent;
-		}
-
-		$items = array();
-		foreach ( $chain as $t ) {
-			$items[] = array(
-				'label' => $t->name,
-				'url'   => get_term_link( $t ),
-			);
-		}
-
-		return $items;
-	}
 }
