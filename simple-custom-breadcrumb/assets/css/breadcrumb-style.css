@@ -1,0 +1,68 @@
+/**
+ * Simple Custom Breadcrumb – base styles
+ *
+ * Dynamic colour / typography overrides are injected inline via
+ * wp_add_inline_style() in the main plugin file.
+ */
+
+/* ---- Container ----------------------------------------------------------- */
+.scb-breadcrumb {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	line-height: 1.5;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+}
+
+/* ---- List (reset) -------------------------------------------------------- */
+.scb-breadcrumb .scb-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0;
+}
+
+/* ---- Individual items ---------------------------------------------------- */
+.scb-breadcrumb .scb-item {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+/* ---- Links --------------------------------------------------------------- */
+.scb-breadcrumb a {
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+
+.scb-breadcrumb a:hover,
+.scb-breadcrumb a:focus {
+	text-decoration: underline;
+}
+
+/* ---- Separator ----------------------------------------------------------- */
+.scb-breadcrumb .scb-separator {
+	display: inline-block;
+	margin: 0 0.4em;
+	user-select: none;
+}
+
+/* ---- Current (last) item ------------------------------------------------- */
+.scb-breadcrumb .scb-current {
+	font-weight: 500;
+}
+
+/* ---- Responsive ---------------------------------------------------------- */
+@media screen and (max-width: 480px) {
+	.scb-breadcrumb {
+		font-size: 12px;
+	}
+
+	.scb-breadcrumb .scb-separator {
+		margin: 0 0.25em;
+	}
+}
