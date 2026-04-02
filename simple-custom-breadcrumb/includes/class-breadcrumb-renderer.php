@@ -21,9 +21,13 @@ class SCB_Breadcrumb_Renderer {
 	/**
 	 * Returns the rendered breadcrumb HTML string.
 	 *
+	 * @param array $overrides Optional per-instance style overrides. Supported
+	 *                         keys: link_color, hover_color, current_color,
+	 *                         separator_color, font_size, text_transform,
+	 *                         padding, margin.  All must already be sanitized.
 	 * @return string
 	 */
-	public function render() {
+	public function render( $overrides = array() ) {
 		$opts  = SCB_Breadcrumb_Settings::get_options();
 		$items = $this->build_trail();
 
@@ -38,7 +42,49 @@ class SCB_Breadcrumb_Renderer {
 
 		$sep = ' <span class="scb-separator" aria-hidden="true">' . esc_html( $opts['separator_char'] ) . '</span> ';
 
-		$html  = '<nav class="scb-breadcrumb" aria-label="' . esc_attr__( 'Breadcrumb', 'simple-custom-breadcrumb' ) . '">';
+		// Generate a unique ID and scoped inline style only when overrides are present.
+		$instance_id  = '';
+		$instance_css = '';
+
+		if ( ! empty( $overrides ) ) {
+			$instance_id = 'scb-breadcrumb-' . wp_unique_id();
+
+			// Merge: start from globals, layer overrides on top.
+			$merged = array(
+				'link_color'      => isset( $overrides['link_color'] )      ? $overrides['link_color']      : sanitize_hex_color( $opts['link_color'] ),
+				'hover_color'     => isset( $overrides['hover_color'] )     ? $overrides['hover_color']     : sanitize_hex_color( $opts['hover_color'] ),
+				'current_color'   => isset( $overrides['current_color'] )   ? $overrides['current_color']   : sanitize_hex_color( $opts['active_color'] ),
+				'separator_color' => isset( $overrides['separator_color'] ) ? $overrides['separator_color'] : sanitize_hex_color( $opts['separator_color'] ),
+				'font_size'       => isset( $overrides['font_size'] )       ? (int) $overrides['font_size'] : absint( $opts['font_size'] ),
+				'text_transform'  => isset( $overrides['text_transform'] )  ? $overrides['text_transform']  : $opts['text_transform'],
+				'padding'         => isset( $overrides['padding'] )         ? $overrides['padding']         : sanitize_text_field( $opts['padding'] ),
+				'margin'          => isset( $overrides['margin'] )          ? $overrides['margin']          : sanitize_text_field( $opts['margin'] ),
+			);
+
+			$sel = '#' . esc_attr( $instance_id );
+
+			$css_rules = array(
+				$sel . '{font-size:' . esc_attr( $merged['font_size'] ) . 'px;'
+					. 'text-transform:' . esc_attr( $merged['text_transform'] ) . ';'
+					. 'padding:' . esc_attr( $merged['padding'] ) . ';'
+					. 'margin:' . esc_attr( $merged['margin'] ) . ';}',
+				$sel . ' a{color:' . esc_attr( $merged['link_color'] ) . ';}',
+				$sel . ' a:hover{color:' . esc_attr( $merged['hover_color'] ) . ';}',
+				$sel . ' .scb-current{color:' . esc_attr( $merged['current_color'] ) . ';}',
+				$sel . ' .scb-separator{color:' . esc_attr( $merged['separator_color'] ) . ';}',
+			);
+
+			$instance_css = '<style>' . implode( '', $css_rules ) . '</style>';
+		}
+
+		$nav_attrs  = 'class="scb-breadcrumb"';
+		$nav_attrs .= ' aria-label="' . esc_attr__( 'Breadcrumb', 'simple-custom-breadcrumb' ) . '"';
+		if ( $instance_id ) {
+			$nav_attrs .= ' id="' . esc_attr( $instance_id ) . '"';
+		}
+
+		$html  = $instance_css;
+		$html .= '<nav ' . $nav_attrs . '>';
 		$html .= '<ol class="scb-list" itemscope itemtype="https://schema.org/BreadcrumbList">';
 
 		$total = count( $items );

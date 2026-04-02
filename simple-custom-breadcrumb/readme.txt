@@ -52,6 +52,47 @@ accessible breadcrumb trail.
 Place `[simple_breadcrumb]` anywhere in your content or in an Elementor HTML
 widget / shortcode widget.
 
+= Per-instance style overrides =
+
+You can override the global colour and style settings for a single shortcode
+instance by passing optional attributes.  This is especially useful in
+Elementor when you place the breadcrumb in different sections that have
+different backgrounds (e.g. white text on a hero image vs. dark text on a
+white content area).
+
+**Supported attributes** (all optional):
+
+* `link_color`      – Hex colour for breadcrumb links.  E.g. `#ffffff`.
+* `hover_color`     – Hex colour for link hover state.
+* `current_color`   – Hex colour for the current-page item (`.scb-current`).
+* `separator_color` – Hex colour for the separator character.
+* `font_size`       – Integer pixel value clamped to 8–48.  E.g. `16`.
+* `text_transform`  – One of `none`, `uppercase`, `lowercase`, `capitalize`.
+* `padding`         – CSS shorthand value.  E.g. `4px 8px`.
+* `margin`          – CSS shorthand value.  E.g. `0 0 16px`.
+
+When at least one override attribute is supplied the shortcode outputs a small
+scoped `<style>` block immediately before the breadcrumb `<nav>` element,
+keyed to a unique instance ID.  This means two breadcrumbs on the same page
+can have completely different colours without affecting each other.
+
+**Examples:**
+
+Breadcrumb on a dark hero image (white text):
+```
+[simple_breadcrumb link_color="#ffffff" hover_color="#ffd200" current_color="#ffffff" separator_color="#ffffff"]
+```
+
+Breadcrumb on a white content area (dark text):
+```
+[simple_breadcrumb link_color="#111111" hover_color="#0073aa" current_color="#333333" separator_color="#999999"]
+```
+
+Using default global settings (backward-compatible, no change in output):
+```
+[simple_breadcrumb]
+```
+
 = Elementor Widget =
 
 When Elementor is active, a **Simple Breadcrumb** widget appears in the
@@ -94,6 +135,13 @@ displays > A static page**. If no static front page is set, it falls back to
 the site name from **Settings > General > Site Title**.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added per-instance style overrides via shortcode attributes: `link_color`,
+  `hover_color`, `current_color`, `separator_color`, `font_size`,
+  `text_transform`, `padding`, `margin`.
+* Instance overrides output a scoped `<style>` block so multiple breadcrumbs
+  on the same page can have different colours without affecting each other.
 
 = 1.0.0 =
 * Initial release.
