@@ -307,26 +307,13 @@ class SCB_Breadcrumb_Renderer {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Build the "Home" item using the front page title when a static front page
-	 * is set, otherwise the blog name.
+	 * Build the "Home" item with a fixed "Home" label.
 	 *
 	 * @return array{label: string, url: string}
 	 */
 	private function get_home_item() {
-		$front_page_id = (int) get_option( 'page_on_front' );
-
-		if ( $front_page_id ) {
-			$label = get_the_title( $front_page_id );
-		} else {
-			$label = get_bloginfo( 'name' );
-		}
-
-		if ( empty( $label ) ) {
-			$label = esc_html__( 'Home', 'simple-custom-breadcrumb' );
-		}
-
 		return array(
-			'label' => $label,
+			'label' => esc_html__( 'Home', 'simple-custom-breadcrumb' ),
 			'url'   => home_url( '/' ),
 		);
 	}
