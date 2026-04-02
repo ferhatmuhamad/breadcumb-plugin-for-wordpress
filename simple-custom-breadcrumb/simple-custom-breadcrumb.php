@@ -74,11 +74,75 @@ add_action( 'wp_enqueue_scripts', 'scb_enqueue_assets' );
 
 /**
  * Register [simple_breadcrumb] shortcode.
+ *
+ * Accepted optional attributes (all override global settings for this instance only):
+ *   link_color      – hex colour for breadcrumb links  (e.g. #ffffff)
+ *   hover_color     – hex colour for link hover state
+ *   current_color   – hex colour for the current-page item (.scb-current)
+ *   separator_color – hex colour for the separator
+ *   font_size       – integer px value (clamped 8–48)
+ *   text_transform  – one of: none | uppercase | lowercase | capitalize
+ *   padding         – CSS shorthand value (e.g. "4px 8px")
+ *   margin          – CSS shorthand value (e.g. "0 0 16px")
  */
 function scb_shortcode( $atts ) {
-	$atts = shortcode_atts( array(), $atts, 'simple_breadcrumb' );
+	$atts = shortcode_atts(
+		array(
+			'link_color'      => '',
+			'hover_color'     => '',
+			'current_color'   => '',
+			'separator_color' => '',
+			'font_size'       => '',
+			'text_transform'  => '',
+			'padding'         => '',
+			'margin'          => '',
+		),
+		$atts,
+		'simple_breadcrumb'
+	);
+
+	$overrides = array();
+
+	// Sanitize color attributes.
+	foreach ( array( 'link_color', 'hover_color', 'current_color', 'separator_color' ) as $key ) {
+		if ( '' !== $atts[ $key ] ) {
+			$sanitized = sanitize_hex_color( $atts[ $key ] );
+			if ( $sanitized ) {
+				$overrides[ $key ] = $sanitized;
+			}
+		}
+	}
+
+	// Sanitize font_size: integer clamped to 8–48 px.
+	if ( '' !== $atts['font_size'] ) {
+		$size = absint( $atts['font_size'] );
+		if ( $size >= 8 && $size <= 48 ) {
+			$overrides['font_size'] = $size;
+		}
+	}
+
+	// Sanitize text_transform: allowlist.
+	if ( '' !== $atts['text_transform'] ) {
+		$allowed = array( 'none', 'uppercase', 'lowercase', 'capitalize' );
+		if ( in_array( $atts['text_transform'], $allowed, true ) ) {
+			$overrides['text_transform'] = $atts['text_transform'];
+		}
+	}
+
+	// Sanitize padding / margin: allow only CSS shorthand (numbers + known units).
+	foreach ( array( 'padding', 'margin' ) as $key ) {
+		if ( '' !== $atts[ $key ] ) {
+			$value = sanitize_text_field( $atts[ $key ] );
+			// Allow 1-4 space-separated values of the form: 0 | <number><unit>
+			// where unit is px, em, rem, or %.  This prevents CSS injection.
+			if ( preg_match( '/^(0|[\d.]+(?:px|em|rem|%))(\s+(0|[\d.]+(?:px|em|rem|%)))*$/i', $value ) ) {
+				$overrides[ $key ] = $value;
+			}
+		}
+	}
+
 	$renderer = new SCB_Breadcrumb_Renderer();
-	return $renderer->render();
+	return $renderer->render( $overrides );
 }
 add_shortcode( 'simple_breadcrumb', 'scb_shortcode' );
 
