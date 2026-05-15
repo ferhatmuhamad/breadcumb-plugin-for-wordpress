@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Breadcrumb renderer for Simple Custom Breadcrumb.
  *
@@ -9,14 +10,15 @@
  * @package Simple_Custom_Breadcrumb
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (! defined('ABSPATH')) {
 	exit;
 }
 
 /**
  * Class SCB_Breadcrumb_Renderer
  */
-class SCB_Breadcrumb_Renderer {
+class SCB_Breadcrumb_Renderer
+{
 
 	/**
 	 * Returns the rendered breadcrumb HTML string.
@@ -27,84 +29,93 @@ class SCB_Breadcrumb_Renderer {
 	 *                         padding, margin.  All must already be sanitized.
 	 * @return string
 	 */
-	public function render( $overrides = array() ) {
+	public function render($overrides = array())
+	{
 		$opts  = SCB_Breadcrumb_Settings::get_options();
 		$items = $this->build_trail();
 
 		// Optionally hide on front page.
-		if ( is_front_page() && empty( $opts['show_on_home'] ) ) {
+		if (is_front_page() && empty($opts['show_on_home'])) {
 			return '';
 		}
 
-		if ( empty( $items ) ) {
+		if (empty($items)) {
 			return '';
 		}
 
-		$sep = ' <span class="scb-separator" aria-hidden="true">' . esc_html( $opts['separator_char'] ) . '</span> ';
+		$sep = ' <span class="scb-separator" aria-hidden="true">' . esc_html($opts['separator_char']) . '</span> ';
 
 		// Generate a unique ID and scoped inline style only when overrides are present.
 		$instance_id  = '';
 		$instance_css = '';
 
-		if ( ! empty( $overrides ) ) {
+		if (! empty($overrides)) {
 			$instance_id = 'scb-breadcrumb-' . wp_unique_id();
 
 			// Merge: start from globals, layer overrides on top.
 			$merged = array(
-				'link_color'      => isset( $overrides['link_color'] )      ? $overrides['link_color']      : sanitize_hex_color( $opts['link_color'] ),
-				'hover_color'     => isset( $overrides['hover_color'] )     ? $overrides['hover_color']     : sanitize_hex_color( $opts['hover_color'] ),
-				'current_color'   => isset( $overrides['current_color'] )   ? $overrides['current_color']   : sanitize_hex_color( $opts['active_color'] ),
-				'separator_color' => isset( $overrides['separator_color'] ) ? $overrides['separator_color'] : sanitize_hex_color( $opts['separator_color'] ),
-				'font_size'       => isset( $overrides['font_size'] )       ? (int) $overrides['font_size'] : absint( $opts['font_size'] ),
-				'text_transform'  => isset( $overrides['text_transform'] )  ? $overrides['text_transform']  : $opts['text_transform'],
-				'padding'         => isset( $overrides['padding'] )         ? $overrides['padding']         : sanitize_text_field( $opts['padding'] ),
-				'margin'          => isset( $overrides['margin'] )          ? $overrides['margin']          : sanitize_text_field( $opts['margin'] ),
+				'link_color'      => isset($overrides['link_color'])      ? $overrides['link_color']      : sanitize_hex_color($opts['link_color']),
+				'hover_color'     => isset($overrides['hover_color'])     ? $overrides['hover_color']     : sanitize_hex_color($opts['hover_color']),
+				'current_color'   => isset($overrides['current_color'])   ? $overrides['current_color']   : sanitize_hex_color($opts['active_color']),
+				'separator_color' => isset($overrides['separator_color']) ? $overrides['separator_color'] : sanitize_hex_color($opts['separator_color']),
+				'font_size'       => isset($overrides['font_size'])       ? (int) $overrides['font_size'] : absint($opts['font_size']),
+				'text_transform'  => isset($overrides['text_transform'])  ? $overrides['text_transform']  : $opts['text_transform'],
+				'padding'         => isset($overrides['padding'])         ? $overrides['padding']         : sanitize_text_field($opts['padding']),
+				'margin'          => isset($overrides['margin'])          ? $overrides['margin']          : sanitize_text_field($opts['margin']),
+				'align'           => isset($overrides['align'])           ? $overrides['align']           : (isset($opts['align']) ? $opts['align'] : 'left'),
 			);
 
-			$sel = '#' . esc_attr( $instance_id );
+			$valid_align     = array('left', 'center', 'right');
+			$merged['align'] = in_array($merged['align'], $valid_align, true) ? $merged['align'] : 'left';
+			$justify_map     = array('left' => 'flex-start', 'center' => 'center', 'right' => 'flex-end');
+			$justify         = $justify_map[$merged['align']];
+
+			$sel = '#' . esc_attr($instance_id);
 
 			$css_rules = array(
-				$sel . '{font-size:' . esc_attr( $merged['font_size'] ) . 'px;'
-					. 'text-transform:' . esc_attr( $merged['text_transform'] ) . ';'
-					. 'padding:' . esc_attr( $merged['padding'] ) . ';'
-					. 'margin:' . esc_attr( $merged['margin'] ) . ';}',
-				$sel . ' a{color:' . esc_attr( $merged['link_color'] ) . ';}',
-				$sel . ' a:hover{color:' . esc_attr( $merged['hover_color'] ) . ';}',
-				$sel . ' .scb-current{color:' . esc_attr( $merged['current_color'] ) . ';}',
-				$sel . ' .scb-separator{color:' . esc_attr( $merged['separator_color'] ) . ';}',
+				$sel . '{font-size:' . esc_attr($merged['font_size']) . 'px;'
+					. 'text-transform:' . esc_attr($merged['text_transform']) . ';'
+					. 'padding:' . esc_attr($merged['padding']) . ';'
+					. 'margin:' . esc_attr($merged['margin']) . ';'
+					. 'text-align:' . esc_attr($merged['align']) . ';}',
+				$sel . ' .scb-list{justify-content:' . esc_attr($justify) . ';}',
+				$sel . ' a{color:' . esc_attr($merged['link_color']) . ';}',
+				$sel . ' a:hover{color:' . esc_attr($merged['hover_color']) . ';}',
+				$sel . ' .scb-current{color:' . esc_attr($merged['current_color']) . ';}',
+				$sel . ' .scb-separator{color:' . esc_attr($merged['separator_color']) . ';}',
 			);
 
-			$instance_css = '<style>' . implode( '', $css_rules ) . '</style>';
+			$instance_css = '<style>' . implode('', $css_rules) . '</style>';
 		}
 
 		$nav_attrs  = 'class="scb-breadcrumb"';
-		$nav_attrs .= ' aria-label="' . esc_attr__( 'Breadcrumb', 'simple-custom-breadcrumb' ) . '"';
-		if ( $instance_id ) {
-			$nav_attrs .= ' id="' . esc_attr( $instance_id ) . '"';
+		$nav_attrs .= ' aria-label="' . esc_attr__('Breadcrumb', 'simple-custom-breadcrumb') . '"';
+		if ($instance_id) {
+			$nav_attrs .= ' id="' . esc_attr($instance_id) . '"';
 		}
 
 		$html  = $instance_css;
 		$html .= '<nav ' . $nav_attrs . '>';
 		$html .= '<ol class="scb-list" itemscope itemtype="https://schema.org/BreadcrumbList">';
 
-		$total = count( $items );
-		foreach ( $items as $index => $item ) {
+		$total = count($items);
+		foreach ($items as $index => $item) {
 			$position = $index + 1;
-			$is_last  = ( $position === $total );
+			$is_last  = ($position === $total);
 
 			$html .= '<li class="scb-item" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">';
 
-			if ( $is_last ) {
+			if ($is_last) {
 				// Current page – no link, different colour.
-				$html .= '<span class="scb-current" itemprop="name">' . esc_html( $item['label'] ) . '</span>';
+				$html .= '<span class="scb-current" itemprop="name">' . esc_html($item['label']) . '</span>';
 			} else {
-				$html .= '<a href="' . esc_url( $item['url'] ) . '" itemprop="item">';
-				$html .= '<span itemprop="name">' . esc_html( $item['label'] ) . '</span>';
+				$html .= '<a href="' . esc_url($item['url']) . '" itemprop="item">';
+				$html .= '<span itemprop="name">' . esc_html($item['label']) . '</span>';
 				$html .= '</a>';
 				$html .= $sep;
 			}
 
-			$html .= '<meta itemprop="position" content="' . esc_attr( (string) $position ) . '" />';
+			$html .= '<meta itemprop="position" content="' . esc_attr((string) $position) . '" />';
 			$html .= '</li>';
 		}
 
@@ -127,22 +138,23 @@ class SCB_Breadcrumb_Renderer {
 	 *
 	 * @return array<int, array{label: string, url: string}>
 	 */
-	private function build_trail() {
+	private function build_trail()
+	{
 		$trail = array();
 
 		// Always start with the home item.
 		$trail[] = $this->get_home_item();
 
-		if ( is_front_page() ) {
+		if (is_front_page()) {
 			return $trail;
 		}
 
 		// Special cases that don't follow the URL hierarchy.
-		if ( is_search() ) {
+		if (is_search()) {
 			$trail[] = array(
 				'label' => sprintf(
 					/* translators: %s search query */
-					esc_html__( 'Search: %s', 'simple-custom-breadcrumb' ),
+					esc_html__('Search: %s', 'simple-custom-breadcrumb'),
 					get_search_query()
 				),
 				'url'   => '',
@@ -150,28 +162,28 @@ class SCB_Breadcrumb_Renderer {
 			return $trail;
 		}
 
-		if ( is_404() ) {
+		if (is_404()) {
 			$trail[] = array(
-				'label' => esc_html__( '404 – Not Found', 'simple-custom-breadcrumb' ),
+				'label' => esc_html__('404 – Not Found', 'simple-custom-breadcrumb'),
 				'url'   => '',
 			);
 			return $trail;
 		}
 
-		if ( is_date() ) {
-			$trail = array_merge( $trail, $this->get_date_items() );
+		if (is_date()) {
+			$trail = array_merge($trail, $this->get_date_items());
 			return $trail;
 		}
 
-		if ( is_author() ) {
-			$trail = array_merge( $trail, $this->get_author_items() );
+		if (is_author()) {
+			$trail = array_merge($trail, $this->get_author_items());
 			return $trail;
 		}
 
 		// For all other pages (singular, archives, taxonomies, CPTs):
 		// derive the breadcrumb entirely from the URL path segments so that
 		// every intermediate directory is always represented.
-		$trail = array_merge( $trail, $this->build_items_from_url_segments() );
+		$trail = array_merge($trail, $this->build_items_from_url_segments());
 
 		return $trail;
 	}
@@ -190,47 +202,48 @@ class SCB_Breadcrumb_Renderer {
 	 *
 	 * @return array<int, array{label: string, url: string}>
 	 */
-	private function build_items_from_url_segments() {
+	private function build_items_from_url_segments()
+	{
 		$items = array();
 
 		// Use the sanitized request path from WordPress when available so that
 		// the value is already validated by WordPress core; fall back to a
 		// manually sanitised parse of REQUEST_URI.
-		$request = isset( $GLOBALS['wp']->request ) ? $GLOBALS['wp']->request : '';
-		if ( empty( $request ) ) {
-			$raw_path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-			$request  = trim( wp_parse_url( $raw_path, PHP_URL_PATH ), '/' );
+		$request = isset($GLOBALS['wp']->request) ? $GLOBALS['wp']->request : '';
+		if (empty($request)) {
+			$raw_path = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+			$request  = trim(wp_parse_url($raw_path, PHP_URL_PATH), '/');
 		}
 
-		$path = trim( $request, '/' );
+		$path = trim($request, '/');
 
 		// Strip the WordPress subdirectory prefix when installed in a subfolder.
-		$home_path = trim( wp_parse_url( home_url(), PHP_URL_PATH ), '/' );
-		if ( ! empty( $home_path ) && 0 === strpos( $path, $home_path ) ) {
-			$path = ltrim( substr( $path, strlen( $home_path ) ), '/' );
+		$home_path = trim(wp_parse_url(home_url(), PHP_URL_PATH), '/');
+		if (! empty($home_path) && 0 === strpos($path, $home_path)) {
+			$path = ltrim(substr($path, strlen($home_path)), '/');
 		}
 
-		if ( empty( $path ) ) {
+		if (empty($path)) {
 			return $items;
 		}
 
-		$segments       = explode( '/', $path );
+		$segments       = explode('/', $path);
 		$cumulative_path = '';
-		$total_segments = count( $segments );
+		$total_segments = count($segments);
 
-		foreach ( $segments as $index => $slug ) {
-			if ( empty( $slug ) ) {
+		foreach ($segments as $index => $slug) {
+			if (empty($slug)) {
 				continue;
 			}
 
 			$cumulative_path .= $slug . '/';
-			$is_last          = ( $index === $total_segments - 1 );
+			$is_last          = ($index === $total_segments - 1);
 
-			$label = $this->get_label_for_segment( $slug, $cumulative_path );
+			$label = $this->get_label_for_segment($slug, $cumulative_path);
 
 			$items[] = array(
 				'label' => $label,
-				'url'   => $is_last ? '' : home_url( '/' . $cumulative_path ),
+				'url'   => $is_last ? '' : home_url('/' . $cumulative_path),
 			);
 		}
 
@@ -252,19 +265,20 @@ class SCB_Breadcrumb_Renderer {
 	 * @param string $cumulative_path The cumulative URL path up to and including this segment (with trailing slash).
 	 * @return string Human-readable label.
 	 */
-	private function get_label_for_segment( $slug, $cumulative_path = '' ) {
+	private function get_label_for_segment($slug, $cumulative_path = '')
+	{
 		// 1. Try WordPress Page by full cumulative path, then by slug alone.
-		$page = get_page_by_path( rtrim( $cumulative_path, '/' ) );
-		if ( ! $page instanceof WP_Post ) {
-			$page = get_page_by_path( $slug );
+		$page = get_page_by_path(rtrim($cumulative_path, '/'));
+		if (! $page instanceof WP_Post) {
+			$page = get_page_by_path($slug);
 		}
-		if ( $page instanceof WP_Post ) {
-			return get_the_title( $page );
+		if ($page instanceof WP_Post) {
+			return get_the_title($page);
 		}
 
 		// 2. Try taxonomy term with this slug — single query across all public taxonomies.
-		$taxonomies = array_values( get_taxonomies( array( 'public' => true ), 'names' ) );
-		if ( ! empty( $taxonomies ) ) {
+		$taxonomies = array_values(get_taxonomies(array('public' => true), 'names'));
+		if (! empty($taxonomies)) {
 			$terms = get_terms(
 				array(
 					'taxonomy'   => $taxonomies,
@@ -273,7 +287,7 @@ class SCB_Breadcrumb_Renderer {
 					'number'     => 1,
 				)
 			);
-			if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
+			if (! empty($terms) && ! is_wp_error($terms)) {
 				return $terms[0]->name;
 			}
 		}
@@ -288,18 +302,18 @@ class SCB_Breadcrumb_Renderer {
 				'no_found_rows' => true,
 			)
 		);
-		if ( ! empty( $posts ) ) {
-			return get_the_title( $posts[0] );
+		if (! empty($posts)) {
+			return get_the_title($posts[0]);
 		}
 
 		// 4. Try CPT archive (slug might be the post-type name).
-		$post_type_obj = get_post_type_object( $slug );
-		if ( $post_type_obj ) {
+		$post_type_obj = get_post_type_object($slug);
+		if ($post_type_obj) {
 			return $post_type_obj->labels->name;
 		}
 
 		// 5. Fallback: capitalise and replace hyphens with spaces.
-		return ucwords( str_replace( '-', ' ', $slug ) );
+		return ucwords(str_replace('-', ' ', $slug));
 	}
 
 	// -------------------------------------------------------------------------
@@ -311,10 +325,11 @@ class SCB_Breadcrumb_Renderer {
 	 *
 	 * @return array{label: string, url: string}
 	 */
-	private function get_home_item() {
+	private function get_home_item()
+	{
 		return array(
-			'label' => esc_html__( 'Home', 'simple-custom-breadcrumb' ),
-			'url'   => home_url( '/' ),
+			'label' => esc_html__('Home', 'simple-custom-breadcrumb'),
+			'url'   => home_url('/'),
 		);
 	}
 
@@ -323,34 +338,35 @@ class SCB_Breadcrumb_Renderer {
 	 *
 	 * @return array<int, array{label: string, url: string}>
 	 */
-	private function get_date_items() {
+	private function get_date_items()
+	{
 		$items = array();
 
-		if ( is_year() ) {
+		if (is_year()) {
 			$items[] = array(
-				'label' => get_the_date( 'Y' ),
+				'label' => get_the_date('Y'),
 				'url'   => '',
 			);
-		} elseif ( is_month() ) {
+		} elseif (is_month()) {
 			$items[] = array(
-				'label' => get_the_date( 'Y' ),
-				'url'   => get_year_link( (int) get_the_date( 'Y' ) ),
+				'label' => get_the_date('Y'),
+				'url'   => get_year_link((int) get_the_date('Y')),
 			);
 			$items[] = array(
-				'label' => get_the_date( 'F' ),
+				'label' => get_the_date('F'),
 				'url'   => '',
 			);
-		} elseif ( is_day() ) {
+		} elseif (is_day()) {
 			$items[] = array(
-				'label' => get_the_date( 'Y' ),
-				'url'   => get_year_link( (int) get_the_date( 'Y' ) ),
+				'label' => get_the_date('Y'),
+				'url'   => get_year_link((int) get_the_date('Y')),
 			);
 			$items[] = array(
-				'label' => get_the_date( 'F' ),
-				'url'   => get_month_link( (int) get_the_date( 'Y' ), (int) get_the_date( 'm' ) ),
+				'label' => get_the_date('F'),
+				'url'   => get_month_link((int) get_the_date('Y'), (int) get_the_date('m')),
 			);
 			$items[] = array(
-				'label' => get_the_date( 'j' ),
+				'label' => get_the_date('j'),
 				'url'   => '',
 			);
 		}
@@ -363,9 +379,10 @@ class SCB_Breadcrumb_Renderer {
 	 *
 	 * @return array<int, array{label: string, url: string}>
 	 */
-	private function get_author_items() {
+	private function get_author_items()
+	{
 		$author = get_queried_object();
-		if ( ! $author instanceof WP_User ) {
+		if (! $author instanceof WP_User) {
 			return array();
 		}
 
@@ -376,5 +393,4 @@ class SCB_Breadcrumb_Renderer {
 			),
 		);
 	}
-
 }
